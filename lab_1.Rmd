@@ -1,0 +1,97 @@
+---
+title: "Lab 1"
+author: "Becca Reynolds"
+date: "1/9/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+Attach packages
+```{r}
+library(tidyverse)
+library(here)
+library(janitor)
+library(kableExtra)
+```
+Read in NOAA Fisheries data
+Use here() if .csv is not in your working directory. You can also use "data/noaa_fisheries.csv" but it's safer to use here() because it can ALSO pull from upstream.
+```{r}
+us_landings <- read_csv(here("data","noaa_fisheries.csv"))
+```
+Tidy data
+```{r}
+landings_tidy <- us_landings %>% 
+  janitor::clean_names() %>% 
+  mutate(state = str_to_lower(state),
+         afs_name = str_to_lower(afs_name)) %>% 
+  mutate(dollars_num = parse_number(dollars_usd))
+```
+#^^dollars_usd is going to be read as a character because you have at least one non-numeric thing ($) in the observation. We want to get rid of the ($) and store as numeric
+There are many different functions in the readr package to parse things, like ?parse_number
+Use this this with mutate on dollars_usd to drop non-numeric characters
+
+
+Get info for salmon:
+```{r}
+salmon_landings <- landings_tidy %>% 
+  mutate(afs_clean = str_remove(afs_name, pattern = "aggregate")) %>% 
+  filter(str_detect(afs_clean, pattern = "salmon")) %>% 
+  separate(afs_clean, into = c("group", "species"), sep = ",")
+
+```
+^^you can filter by looking for a partial match instead of an exact match, keep any row with the pattern shark in it. filter by asking: is this string detected? if true, keep that row, if false, don't keep that row. After afs_clean, into = c("group", "species"), tell R to seperate at the comma after salmon in afs_clean observations so it knows how to seperate strings in the column of interest.
+
+Find some grouped summary data:
+
+Find annual total of US landings and dollar value by summing across all states for each type of salmon using group_by() and summarize()
+
+SO group by year and species...
+```{r}
+salmon_summary <- salmon_landings %>%
+  group_by(year, species) %>% 
+  summarize(
+    tot_landings = sum(landings_pounds),
+    tot_value = sum(dollars_num)
+  )
+```
+
+Make a graph to visualize this
+```{r}
+salmon_landings_graph <- ggplot(data = salmon_summary, 
+                                aes(x = year, y = tot_landings)) +
+  geom_line(aes(color = species)) +
+  theme_minimal()
+  
+salmon_landings_graph
+
+```
+You could also group by species like this:
+ggplot(data = salmon_summary, 
+                                aes(x = year, y = tot_landings, group = species)) +
+  geom_line()
+  
+  But it won't assign colors to each species like it does using the code in the code chunk above.
+
+Export graph
+```{r}
+ggsave(plot = salmon_landings_graph,
+       here("figures", "us_salmon_br.png"),
+       height =5,
+       width = 8)
+```
+save the graph to the foler "figures" in this repo. here let's you do this. you can specify dpi, size, ...etc.
+
+Make a table
+```{r}
+salmon_first_5 <- salmon_summary %>% 
+  head(5)
+```
+
+```{r}
+kable(salmon_first_5) %>% 
+  kable_styling(bootstrap_options = "striped",
+                full_width = FALSE)
+```
+
